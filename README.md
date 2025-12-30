@@ -8,10 +8,9 @@
 ![chat room](https://raw.githubusercontent.com/Pandora401/TinCanLan/refs/heads/main/public/scrnshts/readme2.png)
 
 ### Key Features
-- **90s Techno UI**: Immersive CRT terminal aesthetic with flicker and scanline effects.
 - **Pure P2P**: Leveraging WebRTC for direct device-to-device communication. No chat data is stored on any server.
 - **End-to-End Encryption (E2EE)**: AES-256 encryption with keys derived locally from room passwords.
-- **Role Management**: Hosts can "Burn Logs" or "Burn Chat" (terminate session) with global visual effects (progressive fire wipe).
+- **BURN THE LOGS!!!**: Hosts can "Burn Logs" or "Burn Chat" (terminate session) with global visual effects (progressive fire wipe).
 - **Vercel Ready**: Fully serverless signaling architecture designed for the edge.
 
 ## Security Model
@@ -20,22 +19,8 @@
 3. **Encryption**: Messages are encrypted in-browser using your room password. The signaling server NEVER sees your plain text or your password.
 4. **Persistence**: Zero. Once a room is "Burned" or the host disconnects, the data is gone forever.
 
-## Run Locally
-
-Install dependencies:
-```bash
-  npm install
-```
-
-Run dev server:
-```bash
-  npm run dev
-```
-
-Navigate to:
-```bash
-  http://localhost:3000/
-```
+## Play with it Yourself
+Available POC on Vercel: https://burnit-mauve.vercel.app/
 
 ## Deployment
 This project is optimized for [Vercel](https://vercel.com). Simply link your repository and deploy. The signaling logic uses standard Next.js API routes.

@@ -22,7 +22,7 @@ export default function Home() {
   useEffect(() => {
     const discoveryInterval = setInterval(async () => {
       try {
-        const res = await fetch('/api/signal');
+        const res = await fetch(`/api/signal?peerId=${peerId}`);
         const { allSignals } = await res.json();
 
         const localRooms: Room[] = allSignals
@@ -36,10 +36,8 @@ export default function Home() {
 
         const uniqueRooms = Array.from(new Map(localRooms.map(r => [r.id, r])).values());
         setRooms(uniqueRooms);
-      } catch (err) {
-        console.error('Discovery error', err);
-      }
-    }, 3000);
+      } catch (err) { }
+    }, 2000);
 
     return () => clearInterval(discoveryInterval);
   }, []);

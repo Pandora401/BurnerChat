@@ -65,7 +65,7 @@ export class P2PClient {
             }).catch(() => { });
         };
         sendHeartbeat();
-        this.discoveryInterval = setInterval(sendHeartbeat, 10000); // Heartbeat every 10s
+        this.discoveryInterval = setInterval(sendHeartbeat, 5000); // Heartbeat every 5s
     }
 
     private async pollSignaling() {
@@ -88,11 +88,15 @@ export class P2PClient {
 
         if (signal.type === 'offer') {
             if (p) {
-                // If we already have a connection or pending one, only replace if this is a fresh start
+                if (p.connected) return;
                 p.peer.destroy();
             }
 
-            const peer = new Peer({ initiator: false, trickle: false });
+            const peer = new Peer({
+                initiator: false,
+                trickle: false,
+                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+            });
             peer.on('signal', data => this.sendSignal('answer', signal.from, data));
             this.setupPeerEvents(peer, signal.from);
 
@@ -103,8 +107,8 @@ export class P2PClient {
                 metadata: { id: signal.from, name: 'Anonymous', isHost: false }
             });
             peer.signal(signal.data);
-        } else if (p) {
-            p.peer.signal(signal.data);
+        } else if (p && signal.type === 'answer') {
+            try { p.peer.signal(signal.data); } catch (e) { }
         }
     }
 
@@ -161,9 +165,13 @@ export class P2PClient {
     }
 
     connectToPeer(peerId: string) {
-        if (this.peers.has(peerId)) return;
+        if (this.peers.has(peerId) && this.peers.get(peerId)?.connected) return;
 
-        const peer = new Peer({ initiator: true, trickle: false });
+        const peer = new Peer({
+            initiator: true,
+            trickle: false,
+            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+        });
         peer.on('signal', data => this.sendSignal('offer', peerId, data));
         this.setupPeerEvents(peer, peerId);
 

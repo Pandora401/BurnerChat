@@ -13,42 +13,50 @@ type Signal = {
   to: string;
   data: any;
   timestamp: number;
+  ipKey: string;
 };
 
-// Global store (will reset when function sleeps, but works for quick handshakes)
+// Global store
 let signals: Signal[] = [];
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   const { method } = req;
   const publicIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown';
-  const ipKey = Array.isArray(publicIp) ? publicIp[0] : publicIp;
+  const ipKey = Array.isArray(publicIp) ? publicIp[0] : (publicIp as string);
 
-  // Prune old signals (older than 30 seconds)
+  // Prune old signals (older than 60 seconds for discovery, can be shorter for handshakes)
   const now = Date.now();
-  signals = signals.filter(s => now - s.timestamp < 30000);
+  signals = signals.filter(s => now - s.timestamp < 60000);
 
   if (method === 'POST') {
     const { type, from, to, data } = req.body;
-    
+
     if (!type || !from) {
       return res.status(400).json({ error: 'Missing required fields' });
     }
 
-    signals.push({ type, from, to, data, timestamp: now });
+    // Only allow one discovery offer per peer to keep it clean
+    if (to === 'room-discovery') {
+      signals = signals.filter(s => !(s.from === from && s.to === 'room-discovery'));
+    }
+
+    signals.push({ type, from, to, data, timestamp: now, ipKey });
     return res.status(200).json({ success: true });
-  } 
-  
+  }
+
   if (method === 'GET') {
     const { peerId } = req.query;
-    
-    // Find signals intended for this peer
-    const intendedSignals = signals.filter(s => s.to === peerId);
-    
-    // Also return "discovery" signals (offers from others on the same network)
-    // For simplicity, we'll just return everything for now and let the client filter
-    // in a real app, we'd filter by the hashed publicIp.
-    
-    return res.status(200).json({ signals: intendedSignals, allSignals: signals });
+
+    // Scoped by IP: Only show signals from the same network
+    const localSignals = signals.filter(s => s.ipKey === ipKey);
+
+    // Find signals intended specifically for this peer
+    const intendedSignals = localSignals.filter(s => s.to === peerId);
+
+    return res.status(200).json({
+      signals: intendedSignals,
+      allSignals: localSignals // These used for discovery
+    });
   }
 
   res.setHeader('Allow', ['GET', 'POST']);

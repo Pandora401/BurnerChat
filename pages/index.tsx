@@ -95,10 +95,12 @@ export default function Home() {
       tempClient.onPeersUpdate = (peers) => {
         const hostPeer = peers.find(p => p.id === targetRoom.hostId);
         if (hostPeer && targetRoom.hasPassword && !verified) {
+          console.log('[JOIN] HOST_FOUND. SENDING_PASSWORD_VERIFICATION...');
           // Send challenge
           const challenge = E2EE.encrypt('BURNER_CHALLENGE', derivedKey || '');
           tempClient.broadcast({ type: 'password-verify', fromId: peerId, challenge });
-        } else if (hostPeer && !targetRoom.hasPassword) {
+        } else if (hostPeer && !targetRoom.hasPassword && !verified) {
+          console.log('[JOIN] HOST_FOUND (UNLOCKED). PROCEEDING...');
           verified = true;
           clearTimeout(timeout);
           proceed();

@@ -97,10 +97,14 @@ export class P2PClient {
         let p = this.peers.get(signal.from);
 
         if (signal.type === 'offer') {
-            if (p) {
-                if (p.connected) return;
-                // If we're already handshaking, ignore new offers for 2 seconds to allow it to finish
+            if (p && p.connected) {
+                console.log(`[P2P] IGNORING RE-OFFER FROM ${signal.from} (CONNECTED)`);
                 return;
+            }
+
+            if (p) {
+                console.log(`[P2P] REPLACING STALE PEER ${signal.from}`);
+                try { p.peer.destroy(); } catch (e) { }
             }
 
             console.log(`[P2P] RECEIVING OFFER FROM ${signal.from}`);

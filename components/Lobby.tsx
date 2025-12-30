@@ -6,9 +6,11 @@ interface LobbyProps {
     rooms: Room[];
     onHost: (name: string, password?: string) => void;
     onJoin: (room: Room, password?: string) => void;
+    nodeName: string;
+    setNodeName: (name: string) => void;
 }
 
-const Lobby: React.FC<LobbyProps> = ({ rooms, onHost, onJoin }) => {
+const Lobby: React.FC<LobbyProps> = ({ rooms, onHost, onJoin, nodeName, setNodeName }) => {
     const [roomName, setRoomName] = useState('');
     const [password, setPassword] = useState('');
     const [joiningRoom, setJoiningRoom] = useState<Room | null>(null);
@@ -38,52 +40,70 @@ const Lobby: React.FC<LobbyProps> = ({ rooms, onHost, onJoin }) => {
             </motion.div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                {/* Available Connections */}
-                <section className="terminal-window">
-                    <div className="terminal-header">
-                        <span>AVAILABLE_NODES</span>
-                        <span>[{rooms.length}]</span>
-                    </div>
-                    <div className="p-4 space-y-4 min-h-[300px]">
-                        {rooms.length === 0 ? (
-                            <div className="text-[#004400] text-sm italic animate-pulse">
-                                SCANNIG FOR LOCAL PEERS...
-                            </div>
-                        ) : (
-                            rooms.map((room) => (
-                                <div
-                                    key={room.id}
-                                    className="border border-[#003b00] p-3 hover:bg-[#003b00]/30 cursor-crosshair group flex justify-between items-center transition-all"
-                                    onClick={() => room.hasPassword ? setJoiningRoom(room) : onJoin(room)}
-                                >
-                                    <div>
-                                        <div className="text-sm font-bold group-hover:text-white">{room.name}</div>
-                                        <div className="text-[10px] text-[#008f11]/60">HOST_ID: {room.hostId.substring(0, 8)}</div>
-                                    </div>
-                                    <div className="text-xs">
-                                        {room.hasPassword ? '[LOCKED]' : '[OPEN]'}
-                                    </div>
+                {/* Identity & Discovery */}
+                <div className="space-y-12">
+                    <section className="terminal-window border-[#d4ff00]">
+                        <div className="terminal-header !bg-[#d4ff00] !text-black">
+                            <span>SESSION_IDENTITY</span>
+                        </div>
+                        <div className="p-6">
+                            <div className="text-[10px] mb-1 opacity-50">NODE_ALIAS:</div>
+                            <input
+                                type="text"
+                                value={nodeName}
+                                onChange={(e) => setNodeName(e.target.value)}
+                                placeholder="ENTER_ALIAS"
+                                className="hacker-input !border-[#d4ff00] !text-[#d4ff00]"
+                            />
+                            <p className="text-[8px] mt-2 opacity-40 italic">THIS_ID_WILL_BE_VISIBLE_TO_PEERS</p>
+                        </div>
+                    </section>
+
+                    <section className="terminal-window">
+                        <div className="terminal-header">
+                            <span>AVAILABLE_NODES</span>
+                            <span>[{rooms.length}]</span>
+                        </div>
+                        <div className="p-4 space-y-4 min-h-[200px]">
+                            {rooms.length === 0 ? (
+                                <div className="text-[#004400] text-sm italic animate-pulse">
+                                    SCANNIG FOR LOCAL PEERS...
                                 </div>
-                            ))
-                        )}
-                    </div>
-                </section>
+                            ) : (
+                                rooms.map((room) => (
+                                    <div
+                                        key={room.id}
+                                        className="border border-[#003b00] p-3 hover:bg-[#003b00]/30 cursor-crosshair group flex justify-between items-center transition-all"
+                                        onClick={() => room.hasPassword ? setJoiningRoom(room) : onJoin(room)}
+                                    >
+                                        <div>
+                                            <div className="text-sm font-bold group-hover:text-white">{room.name}</div>
+                                            <div className="text-[10px] text-[#008f11]/60">HOST_ID: {room.hostId.substring(0, 8)}</div>
+                                        </div>
+                                        <div className="text-xs">
+                                            {room.hasPassword ? '[LOCKED]' : '[OPEN]'}
+                                        </div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </section>
+                </div>
 
                 {/* Initialize Node */}
                 <section className="terminal-window">
                     <div className="terminal-header">
-                        <span>INITIALIZE_NODE</span>
+                        <span>INITIALIZE_NEW_RELAY</span>
                     </div>
                     <div className="p-6 space-y-6">
                         <div>
-                            <div className="text-[10px] mb-1 opacity-50">NODE_NAME:</div>
+                            <div className="text-[10px] mb-1 opacity-50">RELAY_NAME:</div>
                             <input
                                 type="text"
                                 value={roomName}
                                 onChange={(e) => setRoomName(e.target.value)}
-                                placeholder="PROXIMITY_NAME"
+                                placeholder="ROOM_IDENTIFIER"
                                 className="hacker-input"
-                                autoFocus
                             />
                         </div>
                         <div>
@@ -98,7 +118,7 @@ const Lobby: React.FC<LobbyProps> = ({ rooms, onHost, onJoin }) => {
                         </div>
                         <button
                             onClick={() => onHost(roomName, password)}
-                            disabled={!roomName}
+                            disabled={!roomName || !nodeName}
                             className="w-full hacker-btn py-3 mt-4"
                         >
                             EXECUTE::START_SESSION

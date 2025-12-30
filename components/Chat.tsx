@@ -168,6 +168,23 @@ const Chat: React.FC<ChatProps> = ({ room, isHost, onLeave, p2pClient, encryptio
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar: Peers */}
         <div className={`w-64 border-r border-[#003b00] bg-black/20 flex flex-col ${showPeers ? 'block' : 'hidden md:flex'}`}>
+          <div className="p-3 border-b border-[#003b00] space-y-2">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] opacity-50 uppercase">Your Identity</span>
+            </div>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                defaultValue={p2pClient['myMetadata'].name}
+                onBlur={(e) => {
+                  const newName = e.target.value.trim();
+                  if (newName) p2pClient.updateMetadata({ name: newName });
+                }}
+                className="bg-black/40 border border-[#003b00] text-[11px] px-2 py-1 w-full focus:border-[#d4ff00] outline-none"
+              />
+            </div>
+          </div>
+
           <div className="p-3 text-[10px] border-b border-[#003b00] opacity-50">ACTIVE_PEERS [{peers.length}]</div>
           <div className="flex-1 overflow-y-auto p-2 space-y-2">
             {peers.map(p => (

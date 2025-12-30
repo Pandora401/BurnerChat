@@ -13,14 +13,23 @@ export class P2PClient {
     public myId: string;
     private discoveryKey: string = '';
     private peers: Map<string, P2PPeer> = new Map();
-    public onMessage: (msg: any) => void;
-    public onPeersUpdate: (peers: PeerMetadata[]) => void;
+    public onMessage: (msg: any) => void = () => { };
+    private pOnPeersUpdate: (peers: PeerMetadata[]) => void;
     private interval: NodeJS.Timeout | null = null;
     private discoveryInterval: NodeJS.Timeout | null = null;
     private myMetadata: PeerMetadata;
     private roomConfig: { name: string, hasPassword: boolean } | null = null;
     private lastSignalTimestamp: number = 0;
     private seenSignalIds: Set<string> = new Set();
+
+    public set onPeersUpdate(fn: (peers: PeerMetadata[]) => void) {
+        this.pOnPeersUpdate = fn;
+        this.notifyPeersUpdate();
+    }
+
+    public get onPeersUpdate() {
+        return this.pOnPeersUpdate;
+    }
 
     constructor(
         myId: string,
@@ -32,7 +41,7 @@ export class P2PClient {
         this.myId = myId;
         this.myMetadata = { id: myId, name: initialName, isHost };
         this.onMessage = onMessage;
-        this.onPeersUpdate = onPeersUpdate;
+        this.pOnPeersUpdate = onPeersUpdate;
         // Start from "now" to avoid processing old signals from previous sessions
         this.lastSignalTimestamp = Date.now();
     }

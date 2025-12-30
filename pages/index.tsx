@@ -11,7 +11,7 @@ const generateDefaultName = () => `NODE_${Math.floor(Math.random() * 9999 + 1000
 
 export default function Home() {
   const [peerId] = useState(generatePeerId());
-  const [initialName] = useState(generateDefaultName());
+  const [nodeName, setNodeName] = useState(generateDefaultName());
   const [room, setRoom] = useState<Room | null>(null);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isHost, setIsHost] = useState(false);
@@ -53,7 +53,7 @@ export default function Home() {
       setEncryptionKey(E2EE.deriveKey(password, 'BURNER_SALT_v1'));
     }
 
-    p2pClient.current = new P2PClient(peerId, initialName, true, (msg) => { }, setPeers);
+    p2pClient.current = new P2PClient(peerId, nodeName, true, (msg) => { }, setPeers);
     p2pClient.current.setRoomConfig(name, !!password);
     await p2pClient.current.startDiscovery();
   };
@@ -62,7 +62,7 @@ export default function Home() {
     const derivedKey = password ? E2EE.deriveKey(password, 'BURNER_SALT_v1') : null;
 
     // 1. Setup temporary client for handshake
-    const tempClient = new P2PClient(peerId, initialName, false, () => { }, () => { });
+    const tempClient = new P2PClient(peerId, nodeName, false, () => { }, () => { });
     await tempClient.startDiscovery();
 
     // 2. Connect and verify
@@ -77,6 +77,7 @@ export default function Home() {
 
       tempClient.onMessage = (msg) => {
         if (msg.type === 'handshake-success' && msg.toId === peerId) {
+          console.log('[JOIN] HANDSHAKE_SUCCESS');
           verified = true;
           clearTimeout(timeout);
           proceed();
@@ -89,6 +90,8 @@ export default function Home() {
         setEncryptionKey(derivedKey);
         setRoom(targetRoom);
         setIsHost(false);
+        // Force metadata update now that the session is official
+        p2pClient.current.updateMetadata({ name: nodeName });
         resolve();
       };
 
@@ -134,7 +137,13 @@ export default function Home() {
 
       <main className="h-screen overflow-hidden text-[#00ff41]">
         {!room ? (
-          <Lobby rooms={rooms} onHost={handleHost} onJoin={handleJoin} />
+          <Lobby
+            rooms={rooms}
+            onHost={handleHost}
+            onJoin={handleJoin}
+            nodeName={nodeName}
+            setNodeName={setNodeName}
+          />
         ) : (
           <Chat
             room={room}

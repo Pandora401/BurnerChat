@@ -151,6 +151,16 @@ export class P2PClient {
             if (p) {
                 p.connected = true;
                 this.broadcastMyMetadata();
+
+                // If I am the host, I must introduce this new peer to all existing peers
+                // to form a full mesh network.
+                if (this.myMetadata.isHost) {
+                    console.log(`[P2P] HOST INTRODUCING ${id} TO ALL PEERS`);
+                    this.broadcast({
+                        type: 'peer-introduction',
+                        payload: { id, metadata: p.metadata }
+                    });
+                }
             }
         });
         peer.on('data', data => this.handleData(id, data));
@@ -172,6 +182,13 @@ export class P2PClient {
                 if (p) {
                     p.metadata = msg.payload;
                     this.notifyPeersUpdate();
+                }
+            } else if (msg.type === 'peer-introduction') {
+                // If the host tells us about a peer we don't know, connect to them!
+                const intro = msg.payload;
+                if (intro.id !== this.myId && !this.peers.has(intro.id)) {
+                    console.log(`[P2P] INTRODUCED TO ${intro.id} BY HOST. CONNECTING...`);
+                    this.connectToPeer(intro.id);
                 }
             } else {
                 this.onMessage(msg);

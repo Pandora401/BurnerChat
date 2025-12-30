@@ -1,9 +1,11 @@
 # BurnerChat 🔥
 
-![Hacker UI](https://media.istockphoto.com/id/999907254/fi/vektori/voi-soittaa.jpg?s=612x612&w=0&k=20&c=RruQgsPT3fG-dPwB8TqcUGQZNd5F5zRbxb8KHQH8Dw8=)
+![lobby](https://raw.githubusercontent.com/Pandora401/TinCanLan/refs/heads/main/public/scrnshts/readme.png)
 
 ## Overview
 **BurnerChat** is a decentralized, ephemeral, and decentralized P2P chat application designed for secure communication within local networks. Inspired by the "Tin Can" telephone, it ensures that your data never leaves your network and disappears the moment you're done.
+
+![chat room](https://raw.githubusercontent.com/Pandora401/TinCanLan/refs/heads/main/public/scrnshts/readme2.png)
 
 ### Key Features
 - **90s Techno UI**: Immersive CRT terminal aesthetic with flicker and scanline effects.

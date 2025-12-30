@@ -25,6 +25,8 @@ export default function Home() {
         const res = await fetch(`/api/signal?peerId=${peerId}`);
         const { allSignals } = await res.json();
 
+        // console.log('[DISCOVERY] ALL_SIGNALS:', allSignals.length);
+
         const localRooms: Room[] = allSignals
           .filter((s: any) => s.type === 'offer' && s.to === 'room-discovery')
           .map((s: any) => ({
@@ -37,10 +39,10 @@ export default function Home() {
         const uniqueRooms = Array.from(new Map(localRooms.map(r => [r.id, r])).values());
         setRooms(uniqueRooms);
       } catch (err) { }
-    }, 2000);
+    }, 1500);
 
     return () => clearInterval(discoveryInterval);
-  }, []);
+  }, [peerId]);
 
   const handleHost = async (name: string, password?: string) => {
     setIsHost(true);
@@ -48,7 +50,7 @@ export default function Home() {
     setRoom(newRoom);
 
     if (password) {
-      setEncryptionKey(E2EE.deriveKey(password, 'local-salt'));
+      setEncryptionKey(E2EE.deriveKey(password, 'BURNER_SALT_v1'));
     }
 
     p2pClient.current = new P2PClient(peerId, initialName, true, (msg) => { }, setPeers);
@@ -57,7 +59,7 @@ export default function Home() {
   };
 
   const handleJoin = async (targetRoom: Room, password?: string) => {
-    const derivedKey = password ? E2EE.deriveKey(password, 'local-salt') : null;
+    const derivedKey = password ? E2EE.deriveKey(password, 'BURNER_SALT_v1') : null;
 
     // 1. Setup temporary client for handshake
     const tempClient = new P2PClient(peerId, initialName, false, () => { }, () => { });

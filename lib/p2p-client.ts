@@ -19,6 +19,8 @@ export class P2PClient {
     private discoveryInterval: NodeJS.Timeout | null = null;
     private myMetadata: PeerMetadata;
     private roomConfig: { name: string, hasPassword: boolean } | null = null;
+    private lastSignalTimestamp: number = 0;
+    private seenSignalIds: Set<string> = new Set();
 
     constructor(
         myId: string,
@@ -31,6 +33,8 @@ export class P2PClient {
         this.myMetadata = { id: myId, name: initialName, isHost };
         this.onMessage = onMessage;
         this.onPeersUpdate = onPeersUpdate;
+        // Start from "now" to avoid processing old signals from previous sessions
+        this.lastSignalTimestamp = Date.now();
     }
 
     setRoomConfig(name: string, hasPassword: boolean) {
@@ -74,9 +78,15 @@ export class P2PClient {
             try {
                 const res = await fetch(`/api/signal?peerId=${this.myId}`);
                 const { signals } = await res.json();
+
+                let maxTimestamp = this.lastSignalTimestamp;
                 for (const signal of signals) {
+                    if (signal.timestamp <= this.lastSignalTimestamp) continue;
+
                     this.handleSignal(signal);
+                    if (signal.timestamp > maxTimestamp) maxTimestamp = signal.timestamp;
                 }
+                this.lastSignalTimestamp = maxTimestamp;
             } catch (err) { }
         }, 2000);
     }
@@ -89,13 +99,21 @@ export class P2PClient {
         if (signal.type === 'offer') {
             if (p) {
                 if (p.connected) return;
-                p.peer.destroy();
+                // If we're already handshaking, ignore new offers for 2 seconds to allow it to finish
+                return;
             }
 
+            console.log(`[P2P] RECEIVING OFFER FROM ${signal.from}`);
             const peer = new Peer({
                 initiator: false,
                 trickle: false,
-                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+                config: {
+                    iceServers: [
+                        { urls: 'stun:stun.l.google.com:19302' },
+                        { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' }
+                    ]
+                }
             });
             peer.on('signal', data => this.sendSignal('answer', signal.from, data));
             this.setupPeerEvents(peer, signal.from);
@@ -107,13 +125,15 @@ export class P2PClient {
                 metadata: { id: signal.from, name: 'Anonymous', isHost: false }
             });
             peer.signal(signal.data);
-        } else if (p && signal.type === 'answer') {
+        } else if (p) {
+            console.log(`[P2P] RECEIVING ${signal.type.toUpperCase()} FROM ${signal.from}`);
             try { p.peer.signal(signal.data); } catch (e) { }
         }
     }
 
     private setupPeerEvents(peer: Peer.Instance, id: string) {
         peer.on('connect', () => {
+            console.log(`[P2P] CONNECTED TO PEER ${id}`);
             const p = this.peers.get(id);
             if (p) {
                 p.connected = true;
@@ -121,9 +141,12 @@ export class P2PClient {
             }
         });
         peer.on('data', data => this.handleData(id, data));
-        peer.on('close', () => this.removePeer(id));
+        peer.on('close', () => {
+            console.log(`[P2P] CLOSED CONNECTION WITH ${id}`);
+            this.removePeer(id);
+        });
         peer.on('error', (err) => {
-            console.error('Peer error', err);
+            console.error(`[P2P] ERROR WITH PEER ${id}:`, err);
             this.removePeer(id);
         });
     }
@@ -150,13 +173,14 @@ export class P2PClient {
     private removePeer(id: string) {
         const p = this.peers.get(id);
         if (p) {
-            p.peer.destroy();
+            try { p.peer.destroy(); } catch (e) { }
             this.peers.delete(id);
             this.notifyPeersUpdate();
         }
     }
 
     private async sendSignal(type: string, to: string, data: any) {
+        console.log(`[P2P] SENDING ${type.toUpperCase()} TO ${to}`);
         await fetch('/api/signal', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -167,10 +191,17 @@ export class P2PClient {
     connectToPeer(peerId: string) {
         if (this.peers.has(peerId) && this.peers.get(peerId)?.connected) return;
 
+        console.log(`[P2P] INITIATING CONNECTION TO ${peerId}`);
         const peer = new Peer({
             initiator: true,
             trickle: false,
-            config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' }
+                ]
+            }
         });
         peer.on('signal', data => this.sendSignal('offer', peerId, data));
         this.setupPeerEvents(peer, peerId);

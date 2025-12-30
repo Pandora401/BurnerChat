@@ -1,37 +1,43 @@
-// ChatInput.tsx
-import React from 'react';
+import React, { useState, KeyboardEvent } from 'react';
 
 interface ChatInputProps {
-  message: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onSend: () => void;
-  maxLength: number;
+  onSend: (message: string) => void;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ message, onChange, onSend, maxLength }) => {
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
+const ChatInput: React.FC<ChatInputProps> = ({ onSend }) => {
+  const [text, setText] = useState('');
+
+  const handleSend = () => {
+    if (text.trim()) {
+      onSend(text);
+      setText('');
+    }
+  };
+
+  const handleKeyDown = (e: KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      onSend();
+      handleSend();
     }
   };
 
   return (
-    <div className="flex items-center bg-gray-800 border-t border-gray-700 p-2">
-      <input
-        type="text"
-        value={message}
-        onChange={onChange}
+    <div className="flex gap-2">
+      <span className="text-[#00ff41] font-bold self-center animate-pulse">{'>'}</span>
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
         onKeyDown={handleKeyDown}
-        className="flex-1 bg-gray-900 text-white border border-gray-700 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        placeholder="Type your message..."
-        maxLength={maxLength}
+        placeholder="ENTER_DATA_HERE..."
+        className="flex-1 bg-black/50 border border-[#003b00] focus:border-[#00ff41] text-[#00ff41] text-sm px-4 py-2 min-h-[40px] max-h-[100px] resize-none font-mono outline-none"
+        rows={1}
       />
       <button
-        onClick={onSend}
-        className="ml-2 bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        onClick={handleSend}
+        disabled={!text.trim()}
+        className="hacker-btn !py-2 !px-6 flex-shrink-0"
       >
-        Send
+        SEND
       </button>
     </div>
   );

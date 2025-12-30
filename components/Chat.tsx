@@ -58,12 +58,18 @@ const Chat: React.FC<ChatProps> = ({ room, isHost, onLeave, p2pClient, encryptio
       } else if (data.type === 'delegate-host' && data.to === peerId) {
         onRoleChange(true);
         alert('YOU ARE NOW THE HOST.');
+      } else if (data.type === 'password-verify' && isHost) {
+        // If someone sends a password verification, we reply with success if decrypted correctly
+        const challenge = E2EE.decrypt(data.challenge, encryptionKey || '');
+        if (challenge === 'BURNER_CHALLENGE') {
+          p2pClient.broadcast({ type: 'handshake-success', toId: data.fromId });
+        }
       }
     };
 
     p2pClient.onMessage = handleInbound;
     return () => { p2pClient.onMessage = () => { }; };
-  }, [p2pClient, encryptionKey, peerId, onRoleChange, messages.length]); // Need messages.length to capture current state in progressiveWipe
+  }, [p2pClient, encryptionKey, peerId, onRoleChange, messages.length, isHost]);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

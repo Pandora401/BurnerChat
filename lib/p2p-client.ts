@@ -16,7 +16,9 @@ export class P2PClient {
     public onMessage: (msg: any) => void;
     public onPeersUpdate: (peers: PeerMetadata[]) => void;
     private interval: NodeJS.Timeout | null = null;
+    private discoveryInterval: NodeJS.Timeout | null = null;
     private myMetadata: PeerMetadata;
+    private roomConfig: { name: string, hasPassword: boolean } | null = null;
 
     constructor(
         myId: string,
@@ -31,6 +33,10 @@ export class P2PClient {
         this.onPeersUpdate = onPeersUpdate;
     }
 
+    setRoomConfig(name: string, hasPassword: boolean) {
+        this.roomConfig = { name, hasPassword };
+    }
+
     updateMetadata(updates: Partial<PeerMetadata>) {
         this.myMetadata = { ...this.myMetadata, ...updates };
         this.broadcast({ type: 'metadata-update', payload: this.myMetadata });
@@ -38,17 +44,32 @@ export class P2PClient {
     }
 
     async startDiscovery() {
-        try {
-            const res = await fetch('/api/discovery');
-            const data = await res.json();
-            this.discoveryKey = data.discoveryKey;
-            this.pollSignaling();
-        } catch (err) {
-            console.error('Discovery failed', err);
+        this.pollSignaling();
+        if (this.myMetadata.isHost && this.roomConfig) {
+            this.startHeartbeat();
         }
     }
 
+    private startHeartbeat() {
+        if (this.discoveryInterval) clearInterval(this.discoveryInterval);
+        const sendHeartbeat = () => {
+            fetch('/api/signal', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    type: 'offer',
+                    from: this.myId,
+                    to: 'room-discovery',
+                    data: { roomName: this.roomConfig?.name, hasPassword: this.roomConfig?.hasPassword }
+                })
+            }).catch(() => { });
+        };
+        sendHeartbeat();
+        this.discoveryInterval = setInterval(sendHeartbeat, 10000); // Heartbeat every 10s
+    }
+
     private async pollSignaling() {
+        if (this.interval) clearInterval(this.interval);
         this.interval = setInterval(async () => {
             try {
                 const res = await fetch(`/api/signal?peerId=${this.myId}`);
@@ -57,45 +78,65 @@ export class P2PClient {
                     this.handleSignal(signal);
                 }
             } catch (err) { }
-        }, 3000);
+        }, 2000);
     }
 
     private async handleSignal(signal: any) {
+        if (signal.from === this.myId) return;
+
         let p = this.peers.get(signal.from);
-        if (!p) {
+
+        if (signal.type === 'offer') {
+            if (p) {
+                // If we already have a connection or pending one, only replace if this is a fresh start
+                p.peer.destroy();
+            }
+
             const peer = new Peer({ initiator: false, trickle: false });
             peer.on('signal', data => this.sendSignal('answer', signal.from, data));
-            peer.on('connect', () => {
-                p!.connected = true;
-                this.broadcastMyMetadata();
-            });
-            peer.on('data', data => this.handleData(signal.from, data));
-            peer.on('close', () => this.removePeer(signal.from));
-            peer.on('error', () => this.removePeer(signal.from));
+            this.setupPeerEvents(peer, signal.from);
 
-            p = {
+            this.peers.set(signal.from, {
                 id: signal.from,
                 peer,
                 connected: false,
                 metadata: { id: signal.from, name: 'Anonymous', isHost: false }
-            };
-            this.peers.set(signal.from, p);
+            });
+            peer.signal(signal.data);
+        } else if (p) {
+            p.peer.signal(signal.data);
         }
-        p.peer.signal(signal.data);
+    }
+
+    private setupPeerEvents(peer: Peer.Instance, id: string) {
+        peer.on('connect', () => {
+            const p = this.peers.get(id);
+            if (p) {
+                p.connected = true;
+                this.broadcastMyMetadata();
+            }
+        });
+        peer.on('data', data => this.handleData(id, data));
+        peer.on('close', () => this.removePeer(id));
+        peer.on('error', (err) => {
+            console.error('Peer error', err);
+            this.removePeer(id);
+        });
     }
 
     private handleData(fromId: string, data: any) {
-        const msg = JSON.parse(data.toString());
-
-        if (msg.type === 'metadata-update') {
-            const p = this.peers.get(fromId);
-            if (p) {
-                p.metadata = msg.payload;
-                this.notifyPeersUpdate();
+        try {
+            const msg = JSON.parse(data.toString());
+            if (msg.type === 'metadata-update') {
+                const p = this.peers.get(fromId);
+                if (p) {
+                    p.metadata = msg.payload;
+                    this.notifyPeersUpdate();
+                }
+            } else {
+                this.onMessage(msg);
             }
-        } else {
-            this.onMessage(msg);
-        }
+        } catch (e) { }
     }
 
     private broadcastMyMetadata() {
@@ -103,8 +144,12 @@ export class P2PClient {
     }
 
     private removePeer(id: string) {
-        this.peers.delete(id);
-        this.notifyPeersUpdate();
+        const p = this.peers.get(id);
+        if (p) {
+            p.peer.destroy();
+            this.peers.delete(id);
+            this.notifyPeersUpdate();
+        }
     }
 
     private async sendSignal(type: string, to: string, data: any) {
@@ -117,15 +162,10 @@ export class P2PClient {
 
     connectToPeer(peerId: string) {
         if (this.peers.has(peerId)) return;
+
         const peer = new Peer({ initiator: true, trickle: false });
         peer.on('signal', data => this.sendSignal('offer', peerId, data));
-        peer.on('connect', () => {
-            const pState = this.peers.get(peerId);
-            if (pState) pState.connected = true;
-            this.broadcastMyMetadata();
-        });
-        peer.on('data', data => this.handleData(peerId, data));
-        peer.on('close', () => this.removePeer(peerId));
+        this.setupPeerEvents(peer, peerId);
 
         this.peers.set(peerId, {
             id: peerId,
@@ -139,13 +179,18 @@ export class P2PClient {
         const data = JSON.stringify(message);
         this.peers.forEach(p => {
             if (p.connected) {
-                try { p.peer.send(data); } catch (e) { }
+                try {
+                    p.peer.send(data);
+                } catch (e) {
+                    console.error('Broadcast failed for peer', p.id, e);
+                }
             }
         });
     }
 
     destroy() {
         if (this.interval) clearInterval(this.interval);
+        if (this.discoveryInterval) clearInterval(this.discoveryInterval);
         this.peers.forEach(p => p.peer.destroy());
         this.peers.clear();
     }

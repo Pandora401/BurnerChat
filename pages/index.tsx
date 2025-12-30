@@ -54,31 +54,59 @@ export default function Home() {
     }
 
     p2pClient.current = new P2PClient(peerId, initialName, true, (msg) => { }, setPeers);
+    p2pClient.current.setRoomConfig(name, !!password);
     await p2pClient.current.startDiscovery();
-
-    await fetch('/api/signal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        type: 'offer',
-        from: peerId,
-        to: 'room-discovery',
-        data: { roomName: name, hasPassword: !!password }
-      })
-    });
   };
 
   const handleJoin = async (targetRoom: Room, password?: string) => {
-    setRoom(targetRoom);
-    setIsHost(false);
+    const derivedKey = password ? E2EE.deriveKey(password, 'local-salt') : null;
 
-    if (password) {
-      setEncryptionKey(E2EE.deriveKey(password, 'local-salt'));
-    }
+    // 1. Setup temporary client for handshake
+    const tempClient = new P2PClient(peerId, initialName, false, () => { }, () => { });
+    await tempClient.startDiscovery();
 
-    p2pClient.current = new P2PClient(peerId, initialName, false, (msg) => { }, setPeers);
-    await p2pClient.current.startDiscovery();
-    p2pClient.current.connectToPeer(targetRoom.hostId);
+    // 2. Connect and verify
+    return new Promise<void>((resolve, reject) => {
+      let verified = !targetRoom.hasPassword;
+      const timeout = setTimeout(() => {
+        if (!verified) {
+          tempClient.destroy();
+          alert('CONNECTION_TIMEOUT OR INVALID_KEY::ACCESS_DENIED');
+        }
+      }, 10000);
+
+      tempClient.onMessage = (msg) => {
+        if (msg.type === 'handshake-success' && msg.toId === peerId) {
+          verified = true;
+          clearTimeout(timeout);
+          proceed();
+        }
+      };
+
+      const proceed = () => {
+        p2pClient.current = tempClient;
+        p2pClient.current.onPeersUpdate = setPeers;
+        setEncryptionKey(derivedKey);
+        setRoom(targetRoom);
+        setIsHost(false);
+        resolve();
+      };
+
+      tempClient.onPeersUpdate = (peers) => {
+        const hostPeer = peers.find(p => p.id === targetRoom.hostId);
+        if (hostPeer && targetRoom.hasPassword && !verified) {
+          // Send challenge
+          const challenge = E2EE.encrypt('BURNER_CHALLENGE', derivedKey || '');
+          tempClient.broadcast({ type: 'password-verify', fromId: peerId, challenge });
+        } else if (hostPeer && !targetRoom.hasPassword) {
+          verified = true;
+          clearTimeout(timeout);
+          proceed();
+        }
+      };
+
+      tempClient.connectToPeer(targetRoom.hostId);
+    });
   };
 
   const handleLeave = () => {

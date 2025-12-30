@@ -18,6 +18,7 @@ interface ChatProps {
 
 const Chat: React.FC<ChatProps> = ({ room, isHost, onLeave, p2pClient, encryptionKey, peerId, peers, onRoleChange }) => {
   const [messages, setMessages] = useState<Message[]>([]);
+  const processedMessageIds = useRef<Set<string>>(new Set());
   const [showPeers, setShowPeers] = useState(false);
   const [isBurning, setIsBurning] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -41,6 +42,12 @@ const Chat: React.FC<ChatProps> = ({ room, isHost, onLeave, p2pClient, encryptio
   useEffect(() => {
     const handleInbound = (data: any) => {
       if (data.type === 'chat') {
+        if (processedMessageIds.current.has(data.payload.id)) {
+          // console.log('[CHAT] IGNORED DUPLICATE MESSAGE:', data.payload.id);
+          return;
+        }
+        processedMessageIds.current.add(data.payload.id);
+
         const newMessage: Message = {
           ...data.payload,
           decryptedContent: encryptionKey
@@ -76,9 +83,12 @@ const Chat: React.FC<ChatProps> = ({ room, isHost, onLeave, p2pClient, encryptio
   }, [messages, isBurning]);
 
   const sendMessage = (content: string) => {
+    const id = Math.random().toString(36).substring(7);
+    processedMessageIds.current.add(id);
+
     const encrypted = encryptionKey ? E2EE.encrypt(content, encryptionKey) : content;
     const payload: Message = {
-      id: Math.random().toString(36).substring(7),
+      id,
       sender: peerId,
       senderName: p2pClient['myMetadata'].name,
       content: encrypted,

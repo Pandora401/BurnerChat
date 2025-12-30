@@ -183,6 +183,10 @@ export class P2PClient {
                     p.metadata = msg.payload;
                     this.notifyPeersUpdate();
                 }
+                // Relay metadata updates if we are host so everyone knows about name changes
+                if (this.myMetadata.isHost) {
+                    this.broadcast(msg, fromId);
+                }
             } else if (msg.type === 'peer-introduction') {
                 // If the host tells us about a peer we don't know, connect to them!
                 const intro = msg.payload;
@@ -190,6 +194,11 @@ export class P2PClient {
                     console.log(`[P2P] INTRODUCED TO ${intro.id} BY HOST. CONNECTING...`);
                     this.connectToPeer(intro.id);
                 }
+            } else if (msg.type === 'chat' && this.myMetadata.isHost) {
+                // IMPORTANT: As Host, we relay chat messages to all other peers 
+                // to ensure everyone sees them even if a full mesh hasn't formed.
+                this.broadcast(msg, fromId);
+                this.onMessage(msg);
             } else {
                 this.onMessage(msg);
             }
@@ -244,10 +253,10 @@ export class P2PClient {
         });
     }
 
-    broadcast(message: any) {
+    broadcast(message: any, excludeId?: string) {
         const data = JSON.stringify(message);
         this.peers.forEach(p => {
-            if (p.connected) {
+            if (p.connected && p.id !== excludeId) {
                 try {
                     p.peer.send(data);
                 } catch (e) {

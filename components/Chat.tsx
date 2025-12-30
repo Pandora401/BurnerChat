@@ -42,14 +42,19 @@ const Chat: React.FC<ChatProps> = ({ room, isHost, onLeave, p2pClient, encryptio
   useEffect(() => {
     const handleInbound = (data: any) => {
       if (data.type === 'chat') {
-        if (processedMessageIds.current.has(data.payload.id)) {
-          // console.log('[CHAT] IGNORED DUPLICATE MESSAGE:', data.payload.id);
-          return;
-        }
+        if (processedMessageIds.current.has(data.payload.id)) return;
         processedMessageIds.current.add(data.payload.id);
+
+        const decodedAttachment = data.payload.attachment && encryptionKey
+          ? {
+            ...data.payload.attachment,
+            data: E2EE.decrypt(data.payload.attachment.data, encryptionKey) || ''
+          }
+          : data.payload.attachment;
 
         const newMessage: Message = {
           ...data.payload,
+          attachment: decodedAttachment,
           decryptedContent: encryptionKey
             ? E2EE.decrypt(data.payload.content, encryptionKey) || '[DECRYPT_FAILED]'
             : data.payload.content
@@ -82,21 +87,29 @@ const Chat: React.FC<ChatProps> = ({ room, isHost, onLeave, p2pClient, encryptio
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
   }, [messages, isBurning]);
 
-  const sendMessage = (content: string) => {
+  const sendMessage = (content: string, file?: { name: string, type: string, size: number, data: string }) => {
     const id = Math.random().toString(36).substring(7);
     processedMessageIds.current.add(id);
 
     const encrypted = encryptionKey ? E2EE.encrypt(content, encryptionKey) : content;
+    const encryptedAttachment = file && encryptionKey
+      ? { ...file, data: E2EE.encrypt(file.data, encryptionKey) }
+      : file;
+
     const payload: Message = {
       id,
       sender: peerId,
       senderName: p2pClient['myMetadata'].name,
       content: encrypted,
+      attachment: encryptedAttachment,
       timestamp: Date.now(),
       decryptedContent: content
     };
+
+    const localDisplayMessage: Message = { ...payload, attachment: file, decryptedContent: content };
+
     p2pClient.broadcast({ type: 'chat', payload });
-    setMessages(prev => [...prev, payload]);
+    setMessages(prev => [...prev, localDisplayMessage]);
   };
 
   const burnLogs = () => {
@@ -243,9 +256,39 @@ const Chat: React.FC<ChatProps> = ({ room, isHost, onLeave, p2pClient, encryptio
                       </span>
                     </div>
                     <div className={`pl-4 border-l ${msg.sender === peerId ? 'border-[#d4ff00]/30' : 'border-[#003b00]'} py-1`}>
-                      <p className={`whitespace-pre-wrap leading-tight text-sm ${msg.sender === peerId ? 'text-white' : 'text-[#00ff41]'}`}>
-                        {msg.decryptedContent || msg.content}
-                      </p>
+                      {msg.decryptedContent && (
+                        <p className={`whitespace-pre-wrap leading-tight text-sm ${msg.sender === peerId ? 'text-white' : 'text-[#00ff41]'}`}>
+                          {msg.decryptedContent}
+                        </p>
+                      )}
+
+                      {msg.attachment && (
+                        <div className="mt-2 space-y-2">
+                          {msg.attachment.type.startsWith('image/') ? (
+                            <img
+                              src={msg.attachment.data}
+                              alt={msg.attachment.name}
+                              className="max-w-full md:max-w-md max-h-[300px] border border-[#003b00] p-1 rounded hover:scale-[1.02] transition-transform cursor-pointer"
+                              onClick={() => window.open(msg.attachment?.data)}
+                            />
+                          ) : (
+                            <div className="flex items-center gap-3 bg-black/40 border border-[#003b00] p-2 rounded max-w-sm">
+                              <div className="text-[20px]">📄</div>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-bold truncate">{msg.attachment.name}</p>
+                                <p className="text-[8px] opacity-40">{(msg.attachment.size / 1024).toFixed(1)} KB</p>
+                              </div>
+                              <a
+                                href={msg.attachment.data}
+                                download={msg.attachment.name}
+                                className="hacker-btn !py-1 !px-3 !text-[8px]"
+                              >
+                                DOWNLOAD
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 ))}

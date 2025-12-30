@@ -4,6 +4,12 @@ export interface Message {
     senderName: string;
     content: string;
     decryptedContent?: string;
+    attachment?: {
+        name: string;
+        type: string;
+        size: number;
+        data: string; // Base64 encoded or encrypted data
+    };
     timestamp: number;
 }
 

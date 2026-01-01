@@ -34,6 +34,9 @@ const Lobby: React.FC<LobbyProps> = ({ rooms, onHost, onJoin, nodeName, setNodeN
                         <p className="text-[#008f11] text-[8px] md:text-xs uppercase tracking-widest md:tracking-[0.3em] whitespace-nowrap">
                             E2EE P2P LAN CHAT // NO_LOGS
                         </p>
+                        <p className="text-[#008f11] text-[8px] md:text-xs uppercase tracking-widest md:tracking-[0.3em] whitespace-nowrap">
+                            NOTE::This is a POC and only works within LANs. Currently doesnt work on public IP
+                        </p>
                     </div>
                     <img src="/animations/burnit.gif" alt="" className="h-12 md:h-28 mix-blend-screen opacity-80 hidden sm:block" />
                 </div>

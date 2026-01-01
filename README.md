@@ -13,11 +13,15 @@
 - **BURN THE LOGS!!!**: Hosts can "Burn Logs" or "Burn Chat" (terminate session) with global visual effects (progressive fire wipe).
 - **Vercel Ready**: Fully serverless signaling architecture designed for the edge.
 
+![how it works](https://raw.githubusercontent.com/Pandora401/TinCanLan/refs/heads/main/public/scrnshts/howitworks.png)
+
 ## Security Model
 1. **Discovery**: Peers on the same Public IP discover each other's room metadata via a stateless signaling API.
 2. **Handshake**: A WebRTC connection is established directly between peers.
 3. **Encryption**: Messages are encrypted in-browser using your room password. The signaling server NEVER sees your plain text or your password.
 4. **Persistence**: Zero. Once a room is "Burned" or the host disconnects, the data is gone forever.
+
+![flow](https://raw.githubusercontent.com/Pandora401/TinCanLan/refs/heads/main/public/scrnshts/flowsample.png)
 
 ## Play with it Yourself
 Available POC on Vercel: https://burnit-mauve.vercel.app/

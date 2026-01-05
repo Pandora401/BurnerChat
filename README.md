@@ -26,9 +26,8 @@
 ## Play with it Yourself
 Available POC on Vercel: https://burnit-mauve.vercel.app/
 
-## Deployment
-This project is optimized for [Vercel](https://vercel.com). Simply link your repository and deploy. The signaling logic uses standard Next.js API routes.
-
----
 *Inspired by the concept of proximity-based silent communication.*
-*Optimized for local networks and privacy-first environments.*
+*Optimised for local networks and privacy-first environments.*
+
+## TODO
+VLANs :P
